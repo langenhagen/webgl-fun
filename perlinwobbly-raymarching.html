@@ -1,0 +1,548 @@
+<!--
+  author: andreasl
+-->
+<!doctype html>
+<html>
+  <body style="margin: 0px; overflow: hidden">
+    <canvas id="canvas" style="position: absolute; width: 100%; height: 100%" />
+  </body>
+
+  <script type="x-shader/x-vertex" id="vertex-shader">
+    #version 100
+
+    attribute vec2 vertexPosition;
+    varying vec2 vVertexPosition;
+
+    void main() {
+        gl_Position = vec4(vertexPosition, 0.0, 1.0);
+        vVertexPosition = vertexPosition;
+    }
+  </script>
+  <script type="x-shader/x-fragment" id="fragment-shader">
+    #version 100
+    #ifdef GL_ES
+    precision mediump float;
+    #endif
+
+    #define PI 3.1415926535898
+
+    varying vec2 vVertexPosition;
+    uniform float time;
+    uniform float aspect_ratio;
+    uniform vec2 mouse;
+
+    // GLSL textureless classic 3D noise "cnoise",
+    // with an RSL-style periodic variant "pnoise".
+    // Author:  Stefan Gustavson (stefan.gustavson@liu.se)
+    // Version: 2011-10-11
+    //
+    // Many thanks to Ian McEwan of Ashima Arts for the
+    // ideas for permutation and gradient selection.
+    //
+    // Copyright (c) 2011 Stefan Gustavson. All rights reserved.
+    // Distributed under the MIT license. See LICENSE file.
+    // https://github.com/ashima/webgl-noise
+    //
+
+    vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+    vec4 mod289(vec4 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+    vec4 permute(vec4 x) { return mod289(((x*34.0)+1.0)*x); }
+    vec4 taylorInvSqrt(vec4 r) { return 1.79284291400159 - 0.85373472095314 * r; }
+    vec3 fade(vec3 t) { return t*t*t*(t*(t*6.0-15.0)+10.0); }
+
+    // Classic Perlin noise
+    float cnoise(vec3 P) {
+      vec3 Pi0 = floor(P); // Integer part for indexing
+      vec3 Pi1 = Pi0 + vec3(1.0); // Integer part + 1
+      Pi0 = mod289(Pi0);
+      Pi1 = mod289(Pi1);
+      vec3 Pf0 = fract(P); // Fractional part for interpolation
+      vec3 Pf1 = Pf0 - vec3(1.0); // Fractional part - 1.0
+      vec4 ix = vec4(Pi0.x, Pi1.x, Pi0.x, Pi1.x);
+      vec4 iy = vec4(Pi0.yy, Pi1.yy);
+      vec4 iz0 = Pi0.zzzz;
+      vec4 iz1 = Pi1.zzzz;
+
+      vec4 ixy = permute(permute(ix) + iy);
+      vec4 ixy0 = permute(ixy + iz0);
+      vec4 ixy1 = permute(ixy + iz1);
+
+      vec4 gx0 = ixy0 * (1.0 / 7.0);
+      vec4 gy0 = fract(floor(gx0) * (1.0 / 7.0)) - 0.5;
+      gx0 = fract(gx0);
+      vec4 gz0 = vec4(0.5) - abs(gx0) - abs(gy0);
+      vec4 sz0 = step(gz0, vec4(0.0));
+      gx0 -= sz0 * (step(0.0, gx0) - 0.5);
+      gy0 -= sz0 * (step(0.0, gy0) - 0.5);
+
+      vec4 gx1 = ixy1 * (1.0 / 7.0);
+      vec4 gy1 = fract(floor(gx1) * (1.0 / 7.0)) - 0.5;
+      gx1 = fract(gx1);
+      vec4 gz1 = vec4(0.5) - abs(gx1) - abs(gy1);
+      vec4 sz1 = step(gz1, vec4(0.0));
+      gx1 -= sz1 * (step(0.0, gx1) - 0.5);
+      gy1 -= sz1 * (step(0.0, gy1) - 0.5);
+
+      vec3 g000 = vec3(gx0.x,gy0.x,gz0.x);
+      vec3 g100 = vec3(gx0.y,gy0.y,gz0.y);
+      vec3 g010 = vec3(gx0.z,gy0.z,gz0.z);
+      vec3 g110 = vec3(gx0.w,gy0.w,gz0.w);
+      vec3 g001 = vec3(gx1.x,gy1.x,gz1.x);
+      vec3 g101 = vec3(gx1.y,gy1.y,gz1.y);
+      vec3 g011 = vec3(gx1.z,gy1.z,gz1.z);
+      vec3 g111 = vec3(gx1.w,gy1.w,gz1.w);
+
+      vec4 norm0 = taylorInvSqrt(vec4(dot(g000, g000), dot(g010, g010), dot(g100, g100), dot(g110, g110)));
+      g000 *= norm0.x;
+      g010 *= norm0.y;
+      g100 *= norm0.z;
+      g110 *= norm0.w;
+      vec4 norm1 = taylorInvSqrt(vec4(dot(g001, g001), dot(g011, g011), dot(g101, g101), dot(g111, g111)));
+      g001 *= norm1.x;
+      g011 *= norm1.y;
+      g101 *= norm1.z;
+      g111 *= norm1.w;
+
+      float n000 = dot(g000, Pf0);
+      float n100 = dot(g100, vec3(Pf1.x, Pf0.yz));
+      float n010 = dot(g010, vec3(Pf0.x, Pf1.y, Pf0.z));
+      float n110 = dot(g110, vec3(Pf1.xy, Pf0.z));
+      float n001 = dot(g001, vec3(Pf0.xy, Pf1.z));
+      float n101 = dot(g101, vec3(Pf1.x, Pf0.y, Pf1.z));
+      float n011 = dot(g011, vec3(Pf0.x, Pf1.yz));
+      float n111 = dot(g111, Pf1);
+
+      vec3 fade_xyz = fade(Pf0);
+      vec4 n_z = mix(vec4(n000, n100, n010, n110), vec4(n001, n101, n011, n111), fade_xyz.z);
+      vec2 n_yz = mix(n_z.xy, n_z.zw, fade_xyz.y);
+      float n_xyz = mix(n_yz.x, n_yz.y, fade_xyz.x);
+      return 2.2 * n_xyz;
+    }
+
+    // Classic Perlin noise, periodic variant
+    float pnoise(vec3 P, vec3 rep) {
+      vec3 Pi0 = mod(floor(P), rep); // Integer part, modulo period
+      vec3 Pi1 = mod(Pi0 + vec3(1.0), rep); // Integer part + 1, mod period
+      Pi0 = mod289(Pi0);
+      Pi1 = mod289(Pi1);
+      vec3 Pf0 = fract(P); // Fractional part for interpolation
+      vec3 Pf1 = Pf0 - vec3(1.0); // Fractional part - 1.0
+      vec4 ix = vec4(Pi0.x, Pi1.x, Pi0.x, Pi1.x);
+      vec4 iy = vec4(Pi0.yy, Pi1.yy);
+      vec4 iz0 = Pi0.zzzz;
+      vec4 iz1 = Pi1.zzzz;
+
+      vec4 ixy = permute(permute(ix) + iy);
+      vec4 ixy0 = permute(ixy + iz0);
+      vec4 ixy1 = permute(ixy + iz1);
+
+      vec4 gx0 = ixy0 * (1.0 / 7.0);
+      vec4 gy0 = fract(floor(gx0) * (1.0 / 7.0)) - 0.5;
+      gx0 = fract(gx0);
+      vec4 gz0 = vec4(0.5) - abs(gx0) - abs(gy0);
+      vec4 sz0 = step(gz0, vec4(0.0));
+      gx0 -= sz0 * (step(0.0, gx0) - 0.5);
+      gy0 -= sz0 * (step(0.0, gy0) - 0.5);
+
+      vec4 gx1 = ixy1 * (1.0 / 7.0);
+      vec4 gy1 = fract(floor(gx1) * (1.0 / 7.0)) - 0.5;
+      gx1 = fract(gx1);
+      vec4 gz1 = vec4(0.5) - abs(gx1) - abs(gy1);
+      vec4 sz1 = step(gz1, vec4(0.0));
+      gx1 -= sz1 * (step(0.0, gx1) - 0.5);
+      gy1 -= sz1 * (step(0.0, gy1) - 0.5);
+
+      vec3 g000 = vec3(gx0.x,gy0.x,gz0.x);
+      vec3 g100 = vec3(gx0.y,gy0.y,gz0.y);
+      vec3 g010 = vec3(gx0.z,gy0.z,gz0.z);
+      vec3 g110 = vec3(gx0.w,gy0.w,gz0.w);
+      vec3 g001 = vec3(gx1.x,gy1.x,gz1.x);
+      vec3 g101 = vec3(gx1.y,gy1.y,gz1.y);
+      vec3 g011 = vec3(gx1.z,gy1.z,gz1.z);
+      vec3 g111 = vec3(gx1.w,gy1.w,gz1.w);
+
+      vec4 norm0 = taylorInvSqrt(vec4(dot(g000, g000), dot(g010, g010), dot(g100, g100), dot(g110, g110)));
+      g000 *= norm0.x;
+      g010 *= norm0.y;
+      g100 *= norm0.z;
+      g110 *= norm0.w;
+      vec4 norm1 = taylorInvSqrt(vec4(dot(g001, g001), dot(g011, g011), dot(g101, g101), dot(g111, g111)));
+      g001 *= norm1.x;
+      g011 *= norm1.y;
+      g101 *= norm1.z;
+      g111 *= norm1.w;
+
+      float n000 = dot(g000, Pf0);
+      float n100 = dot(g100, vec3(Pf1.x, Pf0.yz));
+      float n010 = dot(g010, vec3(Pf0.x, Pf1.y, Pf0.z));
+      float n110 = dot(g110, vec3(Pf1.xy, Pf0.z));
+      float n001 = dot(g001, vec3(Pf0.xy, Pf1.z));
+      float n101 = dot(g101, vec3(Pf1.x, Pf0.y, Pf1.z));
+      float n011 = dot(g011, vec3(Pf0.x, Pf1.yz));
+      float n111 = dot(g111, Pf1);
+
+      vec3 fade_xyz = fade(Pf0);
+      vec4 n_z = mix(vec4(n000, n100, n010, n110), vec4(n001, n101, n011, n111), fade_xyz.z);
+      vec2 n_yz = mix(n_z.xy, n_z.zw, fade_xyz.y);
+      float n_xyz = mix(n_yz.x, n_yz.y, fade_xyz.x);
+      return 2.2 * n_xyz;
+    }
+
+    float turbulence( vec3 p ) {
+      float w = 100.0;
+      float t = -.5;
+      for (float f = 1.0 ; f <= 10.0 ; f++ ){
+        float power = pow( 2.0, f );
+        t += abs( pnoise( vec3( power * p ), vec3( 10.0, 10.0, 10.0 ) ) / power );
+      }
+      return t;
+    }
+
+      float surface3( vec3 coord ) {
+
+      const float frequency = 4.0;
+      float n = 0.0;
+
+      n += 1.0	* abs( cnoise( coord * frequency ) );
+      //	n += 0.5	* abs( cnoise( coord * frequency * 2.0 ) );
+      //	n += 0.25	* abs( cnoise( coord * frequency * 4.0 ) );
+
+      return n;
+    }
+
+    // GLSL Ray Marching Land //
+
+    // Object distance functions and noise functions.
+    // dObject - signed distance function of object.
+    // udObject - unsigned distance function of object.
+
+    float dSphere(const vec3 p, const float radius) { return length(p) - radius; }
+
+    float dRoundBox(const vec3 p, const vec3 box_sides_length, const float roundness) {
+      return length(max(abs(p)-box_sides_length,0.0))-roundness;
+    }
+
+    float udBox(const vec3 p, const vec3 b){
+      return length(max(abs(p)-b,0.0));
+    }
+
+    float dSinusoidalPlasma(const vec3 p){
+      return sin(p.x+time*2.)*cos(p.y+time*2.1)*sin(p.z+time*2.3) * 0.15*sin(p.x*2.)*cos(p.y*2.)*sin(p.z*2.);
+    }
+
+    // Transformation functions.
+    //
+    vec3 opRepete(const vec3 p, const vec3 c) {
+      // returns a new point given point p and a tiling-vector c,
+      // the bigger, the compontents of c, the bigger the tile along
+      // the according dinmension.
+      return mod(p, c) - 0.5 * c;
+    }
+
+    vec3 opTwist(const vec3 p, const float intensity) {
+      float c = cos(intensity*p.y);
+      float s = sin(intensity*p.y);
+      mat2  m = mat2(c,-s,s,c);
+      return vec3(m*p.xz,p.y);
+    }
+
+    vec3 opRotateX(const vec3 p, const float radians) {
+      float sin_rot = sin(radians);
+      float cos_rot = cos(radians);
+      mat3 m = mat3(  1.0,        0.0,        0.0,
+                      0.0,    cos_rot,    sin_rot,
+                      0.0,    -sin_rot,   cos_rot);
+      return m*p;
+    }
+
+    vec3 opRotateY(const vec3 p, const float radians) {
+      float sin_rot = sin(radians);
+      float cos_rot = cos(radians);
+      mat3 m = mat3( cos_rot,    0.0,    -sin_rot,
+                      0.0,        1.0,    0.0,
+                      sin_rot,    0.0,    cos_rot);
+      return m*p;
+    }
+
+    vec3 opRotateZ(const vec3 p, const float radians) {
+      float sin_rot = cos(radians);
+      float cos_rot = sin(radians);
+      mat3 m = mat3(  cos_rot,    sin_rot,    0.0,
+                     -sin_rot,    cos_rot,    0.0,
+                          0.0,        0.0,    1.0);
+      return m*p;
+    }
+
+    // Scene function.
+    // recap: simple combinations of volumetric objects:
+    // - union: min(a,b)
+    // - cut: max(a,b)
+    //- minus: max(a,-b)
+    //
+    float scene(const vec3 p) {
+      vec3 q = p;
+      //q = opRepete(p-vec3(1), vec3(2));
+
+      q = opRotateY(q,sin(time*.0123));
+      return min(
+        // moon
+        dSphere(
+          q - vec3(
+            0.8*sin(time*4.0)*sin(time*2.0),
+            0.8*sin(time*1.0)*cos(time*2.0),
+            0.8*cos(time*1.0)),
+          0.03),
+        // planet
+        dSphere(q, 0.5) + 0.82 * cnoise(vec3(1.,1.,1.) * dSinusoidalPlasma(opTwist(q,pow(sin(time*.271)+1.,4.)*.8) * (3. + 0.3*sin(time*0.7))))
+      );
+    }
+
+    // Raymarching and Color
+
+    // Settings
+    const int max_iterations = 99;
+    const float step_scale = 0.9;
+    const float eps = 0.005;
+
+    struct Ray {
+      vec3 o; ///< origin
+      vec3 d; ///< direction
+    };
+
+    // Retrieves an interpolated, estimated surface normal at a given point.
+    vec3 getNormal(const vec3 p) {
+      // 6-tap normalization. Probably the most accurate, but a bit of a cycle waster.
+      /*
+      return normalize(vec3(
+        scene(vec3(p.x+eps,p.y,p.z))-scene(vec3(p.x-eps,p.y,p.z)),
+        scene(vec3(p.x,p.y+eps,p.z))-scene(vec3(p.x,p.y-eps,p.z)),
+        scene(vec3(p.x,p.y,p.z+eps))-scene(vec3(p.x,p.y,p.z-eps))
+      ));
+      /**/
+      // If speed is an issue, here's a slightly-less-accurate, 4-tap version. If fact,
+      // visually speaking, it's virtually the same, so on a lot of occasions,
+      // this is the one I'll use. However, if speed is really an issue, you could
+      // take away the "normalization" step, then divide by "eps," but I'll usually avoid
+      // doing that.
+
+      float ref = scene(p);
+      return normalize(vec3(
+        scene(vec3(p.x+eps,p.y,p.z))-ref,
+        scene(vec3(p.x,p.y+eps,p.z))-ref,
+        scene(vec3(p.x,p.y,p.z+eps))-ref
+      ));
+      /**/
+      // The tetrahedral version, which does involve fewer calculations, but doesn't seem
+      // as accurate on some surfaces. I could be wrong, but that's the impression I get.
+      /*
+      vec2 e = vec2(-0.5*eps,0.5*eps);
+      return normalize(e.yxx*scene(p+e.yxx)+e.xxy*scene(p+e.xxy)+e.xyx*scene(p+e.xyx)+e.yyy*scene(p+e.yyy));
+      /**/
+    }
+
+    float rayMarching(in Ray r, const float start, const float end) {
+      float dist_to_scene;
+      float ray_length = start;
+      for (int i = 0; i < max_iterations; ++i) {
+        if( ray_length >= end) {
+          return end;
+        }
+
+        dist_to_scene = scene(r.o + r.d * ray_length);
+        if(dist_to_scene < eps) {
+          break;
+        } else {
+          ray_length += dist_to_scene * step_scale;
+        }
+      }
+
+      return ray_length;
+    }
+
+    Ray setupCam(const vec2 uv, const vec3 origin, const vec3 look_at, const vec2 FOV) {
+      vec3 forward = normalize(look_at-origin);
+      vec3 right   = normalize(vec3(forward.z, 0.0, -forward.x));
+      vec3 up      = normalize(cross(forward, right));
+
+      return Ray(origin, normalize(forward + FOV.x*uv.x*right + FOV.y*uv.y*up));
+    }
+
+    void main(void) {
+      vec2 uv = vec2(vVertexPosition.x * aspect_ratio, vVertexPosition.y);
+
+      Ray cam = setupCam(
+        uv,
+        vec3((mouse.x-0.5)*3.0, 0.0, -4.0+(mouse.y)*3.1),
+        vec3(0.,0.,0.),
+        vec2(1.0)
+      );
+
+      const vec4 bg_color = vec4(0.,0.,0.,1.);
+
+      const float clip_near = 0.1;
+      const float clip_far = 10.0;
+      float dist_to_scene = rayMarching(cam, clip_near, clip_far);
+      if (dist_to_scene >= clip_far) {
+        gl_FragColor = bg_color;
+        return;
+      }
+
+      vec3 surf_pos = cam.o + cam.d*dist_to_scene;
+      vec3 surf_norm = getNormal(surf_pos);
+
+      vec3 light_color = vec3(1.,0.97,0.92);
+      vec3 light_pos = vec3(1.5*sin(time*2.0), 0.75+0.25*cos(time*2.0), -1.0);
+      vec3 light_dir = light_pos-dist_to_scene;
+      float light_to_point_dist = length(light_dir);
+      light_dir /= light_to_point_dist;
+      float light_attenuation = min(1.0, 1.0 / (0.025*light_to_point_dist*light_to_point_dist));
+      vec3 light_reflection_dir = reflect(-light_dir, surf_norm);
+
+      vec3 color = vec3(.0,.0,.0);
+
+      float surf_dist = surf_pos.x*surf_pos.x + surf_pos.y*surf_pos.y + surf_pos.z*surf_pos.z;
+      vec3 obj_color = vec3(.3,.6,1.) * 40.0 * pow(surf_dist, cos(time*.3)+2.3);
+
+      color += obj_color;
+
+      gl_FragColor = vec4(clamp(color, 0.0, 1.0), 1.0);
+    }
+  </script>
+
+  <script type="text/javascript" id="webgl-setup">
+    "use strict";
+
+    var fps = 0;
+    var fpsTime = 0.0;
+    var lastFrameTime = Date.now();
+
+    var canvas = document.querySelector("canvas");
+    canvas.width = canvas.clientWidth;
+    canvas.height = canvas.clientHeight;
+    var gl = canvas.getContext("webgl2");
+
+    const timerStart = Date.now();
+
+    var uniforms = {
+      time: function (v) {
+        gl.uniform1f(gl.getUniformLocation(shaderProgram, "time"), v);
+      },
+      mouse: function (v) {
+        gl.uniform2fv(gl.getUniformLocation(shaderProgram, "mouse"), v);
+      },
+      aspectRatio: function (v) {
+        gl.uniform1f(gl.getUniformLocation(shaderProgram, "aspect_ratio"), v);
+      },
+    };
+
+    gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
+    var shaderProgram = compileShaderProgram(
+      gl,
+      document.querySelector("#vertex-shader").innerHTML,
+      document.querySelector("#fragment-shader").innerHTML,
+    );
+    gl.useProgram(shaderProgram);
+    createFullscreenQuad(gl, shaderProgram);
+
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("resize", onWindowResize);
+    window.addEventListener("beforeunload", cleanup, true);
+
+    onWindowResize();
+    render();
+
+    function compileShaderProgram(gl, vertexShaderSource, fragmentShaderSource) {
+      let vertexShader = gl.createShader(gl.VERTEX_SHADER);
+      gl.shaderSource(vertexShader, vertexShaderSource);
+      gl.compileShader(vertexShader);
+      if (!gl.getShaderParameter(vertexShader, gl.COMPILE_STATUS)) {
+        alert(
+          "Vertex shader did not compile successfully.\n" +
+            "Info log: " +
+            gl.getShaderInfoLog(vertexShader),
+        );
+      }
+
+      let fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
+      gl.shaderSource(fragmentShader, fragmentShaderSource);
+      gl.compileShader(fragmentShader);
+      if (!gl.getShaderParameter(fragmentShader, gl.COMPILE_STATUS)) {
+        alert(
+          "Fragment shader did not compile successfully.\n" +
+            "Info log: " +
+            gl.getShaderInfoLog(fragmentShader),
+        );
+      }
+
+      let shaderProgram = gl.createProgram();
+      gl.attachShader(shaderProgram, vertexShader);
+      gl.attachShader(shaderProgram, fragmentShader);
+      gl.linkProgram(shaderProgram);
+      gl.detachShader(shaderProgram, vertexShader);
+      gl.deleteShader(vertexShader);
+      gl.detachShader(shaderProgram, fragmentShader);
+      gl.deleteShader(fragmentShader);
+      if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
+        alert(
+          "Shader shaderProgram did not link successfully.\n" +
+            "Info log: " +
+            gl.getProgramInfoLog(shaderProgram),
+        );
+      }
+      return shaderProgram;
+    }
+
+    function onWindowResize(event) {
+      uniforms.aspectRatio([canvas.clientWidth / canvas.clientHeight]);
+    }
+
+    function onMouseMove(event) {
+      uniforms.mouse([event.pageX / canvas.clientWidth, event.pageY / canvas.clientHeight]);
+    }
+
+    function cleanup() {
+      if (gl) {
+        gl.useProgram(null);
+      }
+      if (shaderProgram) {
+        gl.deleteProgram(shaderProgram);
+      }
+    }
+
+    function createFullscreenQuad(gl, shaderProgram) {
+      const vertexArray = new Float32Array([-1.0, -1.0, -1.0, 1.0, 1.0, -1.0, 1.0, 1.0]);
+
+      gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+      gl.bufferData(gl.ARRAY_BUFFER, vertexArray, gl.STATIC_DRAW);
+
+      const vertexPositionLoc = gl.getAttribLocation(shaderProgram, "vertexPosition");
+      gl.enableVertexAttribArray(vertexPositionLoc); // enables using attrib vals from buffer array
+      gl.vertexAttribPointer(
+        vertexPositionLoc,
+        2 /*no of entries per vertex belonging to this attrib in the buffer*/,
+        gl.FLOAT /* type of entries*/,
+        false /*is normalized*/,
+        8 /*total no bytes of one vertex in buffer, e.g the stride*/,
+        0 /*bytes offset per vertex for this attribute*/,
+      );
+    }
+
+    function render() {
+      window.requestAnimationFrame(render);
+
+      uniforms.time((Date.now() - timerStart) * 0.001);
+
+      // gl.clear(gl.COLOR_BUFFER_BIT);
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0 /*vertex-offset*/, 4 /*vertex-count*/);
+
+      fps++;
+      fpsTime += Date.now() - lastFrameTime;
+      lastFrameTime = Date.now();
+      if (fpsTime >= 1000.0) {
+        fpsTime -= 1000.0;
+        document.title = "perlinwobbly raymarching @" + fps + " fps";
+        fps = 0;
+      }
+    }
+  </script>
+</html>
