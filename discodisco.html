@@ -1,26 +1,124 @@
 <!--
-  @author: andreasl
+  author: andreasl
 -->
 <!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Discodisco</title>
     <style>
       body {
-        background-color: black;
+        margin: 0;
         overflow: hidden;
       }
     </style>
   </head>
-  <body onload="ENGINE.initAndStartWebGLApp()">
-    <canvas id="gl"></canvas>
-
+  <body>
     <script src="js/three.min.js"></script>
-    <script src="./js/Detector.js"></script>
-    <script src="./js/Engine.js" defer></script>
-    <script src="./js/discodisco_scene.js"></script>
-    <script src="./js/SceneManager.js"></script>
+    <script>
+      const renderer = new THREE.WebGLRenderer();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      document.body.appendChild(renderer.domElement);
+
+      const scene = new THREE.Scene();
+
+      const cam = new THREE.PerspectiveCamera(
+        60,
+        window.innerWidth / window.innerHeight,
+        10,
+        10000,
+      );
+      cam.position.set(0, 0, -500);
+      cam.lookAt(scene.position);
+
+      const light = new THREE.PointLight(0xffffff);
+      light.position.set(400, -300, -500);
+      scene.add(light);
+
+      const cubeTextures = [
+        "res/discocubemap/posx.jpg",
+        "res/discocubemap/negx.jpg",
+        "res/discocubemap/posy.jpg",
+        "res/discocubemap/negy.jpg",
+        "res/discocubemap/posz.jpg",
+        "res/discocubemap/negz.jpg",
+      ];
+      const cubeMap = THREE.ImageUtils.loadTextureCube(cubeTextures);
+
+      // rope
+      var ropeMaterial = new THREE.MeshPhongMaterial({
+        color: 0x444444,
+        emissive: 0x000000,
+        specular: 0xaaaaaa,
+        shininess: 20,
+        envMap: cubeMap,
+        reflectivity: 0.1,
+        shading: THREE.SmoothShading,
+      });
+
+      const thickness = 1.3,
+        radiusSegments = 5,
+        heightSegments = 1,
+        height = 200;
+      const ropeGeometry = new THREE.CylinderGeometry(
+        thickness,
+        thickness,
+        height,
+        radiusSegments,
+        heightSegments,
+        true,
+      );
+      const rope = new THREE.Mesh(ropeGeometry, ropeMaterial);
+      rope.position.set(0.0, 200.0, 0.0);
+
+      // ball
+      const mirrorElements = 76;
+      const radius = 100,
+        segments = mirrorElements * 2,
+        rings = mirrorElements;
+
+      const ballMaterial = new THREE.MeshPhongMaterial({
+        color: 0xffffff,
+        emissive: 0x111111,
+        specular: 0xffffff,
+        shininess: 0,
+        envMap: cubeMap,
+        reflectivity: 0.86,
+        shading: THREE.FlatShading,
+        blending: THREE.MultiplyBlending,
+        side: THREE.FrontSide, // BackSide, DoubleSide
+      });
+      const ballGeometry = new THREE.SphereGeometry(radius, segments, rings);
+      const ball = new THREE.Mesh(ballGeometry, ballMaterial);
+      ball.position.set(0.0, 50.0, 0.0);
+
+      const discoball = new THREE.Object3D();
+      discoball.add(rope);
+      discoball.add(ball);
+      scene.add(discoball);
+
+      var lastFrameTime = Date.now();
+
+      const animate = () => {
+        requestAnimationFrame(animate);
+
+        const msSinceLastFrame = Date.now() - lastFrameTime;
+
+        discoball.rotateY(0.0001 * msSinceLastFrame);
+
+        renderer.render(scene, cam);
+
+        lastFrameTime = Date.now();
+      };
+
+      window.addEventListener("resize", () => {
+        cam.aspect = window.innerWidth / window.innerHeight;
+        cam.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      });
+
+      animate();
+    </script>
   </body>
 </html>
