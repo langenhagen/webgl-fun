@@ -22,6 +22,7 @@ tree \
     -I 'index.html' \
     -I 'js' \
     -I 'res' \
+    -I '*.html.bak' \
     -o 'index.html'
 
 git add 'index.html'
