@@ -1,0 +1,93 @@
+<!--
+  author: andreasl
+-->
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Vogelkind</title>
+    <style>
+      body {
+        margin: 0;
+        overflow: hidden;
+      }
+    </style>
+  </head>
+  <body>
+    <script src="js/three.min.js"></script>
+    <script src="js/OBJLoader.js"></script>
+    <script>
+      const renderer = new THREE.WebGLRenderer();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      document.body.appendChild(renderer.domElement);
+
+      const scene = new THREE.Scene();
+
+      const cam = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+      cam.position.set(0, -1.5, 20);
+
+      const light = new THREE.PointLight(0xffffff);
+      light.position.set(100, 100, -50);
+      scene.add(light);
+
+      const cubeTextures = [
+        "res/Vindelalven/posx.jpg",
+        "res/Vindelalven/negx.jpg",
+        "res/Vindelalven/posy.jpg",
+        "res/Vindelalven/negy.jpg",
+        "res/Vindelalven/posz.jpg",
+        "res/Vindelalven/negz.jpg",
+      ];
+      const cubeMap = THREE.ImageUtils.loadTextureCube(cubeTextures);
+      const material = new THREE.MeshPhongMaterial({
+        shininess: 10,
+        envMap: cubeMap,
+        reflectivity: 0.9,
+        refractionRatio: 0.999,
+        blending: THREE.MultiplyBlending,
+      });
+
+      var vogelkind;
+      const loader = new THREE.OBJLoader();
+      loader.load("res/vogelkind.obj", (object) => {
+        for (var i = 0; i < object.children.length; ++i) {
+          var mesh = object.children[i];
+          mesh.material = material;
+        }
+        scene.add(object);
+        vogelkind = object;
+      });
+
+      var lastFrameTime = Date.now();
+      var lastMouseX = null;
+      var mouseX = null;
+
+      document.addEventListener("mousemove", (event) => {
+        mouseX = Math.max(0, event.pageX);
+      });
+
+      const animate = () => {
+        requestAnimationFrame(animate);
+        if (!vogelkind) {
+          return;
+        }
+        const msSinceLastFrame = Date.now() - lastFrameTime;
+        const mouseOffsetX = lastMouseX !== null && mouseX !== null ? mouseX - lastMouseX : 0;
+        vogelkind.rotation.y += (0.0002 + mouseOffsetX * 0.0002) * msSinceLastFrame;
+        renderer.render(scene, cam);
+
+        lastMouseX = mouseX;
+        lastFrameTime = Date.now();
+      };
+
+      window.addEventListener("resize", () => {
+        cam.aspect = window.innerWidth / window.innerHeight;
+        cam.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      });
+
+      animate();
+    </script>
+  </body>
+</html>
