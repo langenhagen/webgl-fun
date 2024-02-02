@@ -265,15 +265,19 @@
     function onKeyDown(event) {
       switch (event.key) {
         case "ArrowUp":
+        case "w":
           movement.forward = true;
           break;
         case "ArrowDown":
+        case "s":
           movement.backward = true;
           break;
         case "ArrowLeft":
+        case "a":
           movement.leftRotate = true;
           break;
         case "ArrowRight":
+        case "d":
           movement.rightRotate = true;
           break;
       }
@@ -282,15 +286,19 @@
     function onKeyUp(event) {
       switch (event.key) {
         case "ArrowUp":
+        case "w":
           movement.forward = false;
           break;
         case "ArrowDown":
+        case "s":
           movement.backward = false;
           break;
         case "ArrowLeft":
+        case "a":
           movement.leftRotate = false;
           break;
         case "ArrowRight":
+        case "d":
           movement.rightRotate = false;
           break;
       }
